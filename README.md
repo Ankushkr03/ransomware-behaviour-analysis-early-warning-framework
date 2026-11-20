@@ -442,7 +442,7 @@ ransomware_detection_framework/
 
 <div align="center">
 
-**Built for Chandigarh University — BE-CSE (Information Security)**
+**Built By Ankush Kumar, Karan Sajwan, Aayush Jena — BE-CSE (Information Security)**
 
 *Real-time • Behavioral • Zero-False-Positive Canary • NIST Compliant*
 
