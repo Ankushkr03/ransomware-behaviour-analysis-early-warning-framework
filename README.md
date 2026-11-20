@@ -79,40 +79,6 @@ flowchart TD
     I --> L["🌐 SOC COMMAND CENTER\nhttp://127.0.0.1:8000\n• Live telemetry dashboard\n• Manual containment controls\n• 36 ransomware simulators"]
     J --> L
     K --> L
-```
-                              MONITORED ENDPOINT
-  +---------------------------------------------------------------------------------+
-  |                             RING 3 (User Space)                                 |
-  |                                                                                 |
-  |  [T2: Host & Process]      [T3: Entropy & FS]        [T4: Identity & Auth]      |
-  |  - Ancestry trees          - Sliding Shannon entropy  - Logon Type 3 vs 10      |
-  |  - Shell spawns            - Mass .locked renaming    - LSASS dump attempts     |
-  |  - Temp dir execution      - Write burst rate         - Kerberoasting (4769)    |
-  |                                                                                 |
-  |  [T5: Network & Exfil]     [T6: Defense Evasion]     [T7: Deception Tripwires]  |
-  |  - Lateral (445/135/3389)  - vssadmin delete shadows - 5 Decoy canary files     |
-  |  - C2 beacon signals       - wmic shadowcopy delete  - Sub-second SHA-256 audit |
-  |  - Bandwidth spikes        - Event log clearing      - Zero false positives     |
-  +---------------------------------------------------------------------------------+
-                                      |
-                                      v
-  +---------------------------------------------------------------------------------+
-  |                  WEIGHTED MULTI-VECTOR RISK SCORING ENGINE                      |
-  |                  R_100 = ( sum(Wi * Si) / sum(Wi) ) * 100                       |
-  |   Normal (0-19) | Low (20-39) | Medium (40-59) | High (60-79) | Critical (80-100)|
-  +---------------------------------------------------------------------------------+
-                         /                          \
-                        v                            v
-  +-------------------------------+    +--------------------------------------------+
-  |    PROMETHEUS TIME-SERIES     |    |   CENTRALIZED SOC COMMAND CENTER (Port 8000)|
-  |    & GRAFANA OBSERVABILITY    |    |   - Live Telemetry Dashboard & Entropy Radar|
-  |  - Prometheus Scrape (/metrics|    |   - Automated Process Kill (ZwTerminateProc)|
-  |  - 4 Alert Rules              |    |   - Network Isolation & Directory Lockdown  |
-  |  - Grafana 10 Dashboard JSON  |    |   - Multi-channel Admin Notifications       |
-  |  - Real-Time Heatmaps         |    |   - NIST SP 800-61 Incident Reports (MD/HTML|
-  +-------------------------------+    |   - Controlled Attack Simulation Suite     |
-                                       +--------------------------------------------+
-```
 
 ---
 
