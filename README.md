@@ -577,7 +577,7 @@ Department of Computer Science & Engineering (BE-CSE)
        [ ZERO-DAY INTRUSION ] ──────► [ T7 CANARY TRIGGER (0.018s) ]
                                                 │
                                                 ▼
-       [ ASSETS 100% PRESERVED ] ◄─── [ AUTO SIGKILL & QUARANTINE (<1.02s) ]
+       [ ASSETS 85% PRESERVED ] ◄─── [ AUTO SIGKILL & QUARANTINE (<1.02s) ]
 ```
 
 <p align="center">
