@@ -1,0 +1,20 @@
+{
+  "status": "CAPTURED",
+  "captured_at": "2026-11-17T07:27:39Z",
+  "duration_sec": 2,
+  "sample_count": 4,
+  "entropy": {
+    "mean": 4.036,
+    "std_dev": 0.054,
+    "max": 4.111,
+    "threshold_3sigma": 4.198
+  },
+  "cpu_percent": {
+    "mean": 0.75,
+    "peak": 1.0
+  },
+  "network_conns": {
+    "mean": 0.0,
+    "peak": 0
+  }
+}

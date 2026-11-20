@@ -1,0 +1,214 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "🚨 Threat Early Warning Status & Tripwire State",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "title": "Composite Ransomware Threat Score (0.0 - 1.0)",
+      "type": "gauge",
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 1 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "composite_threat_score",
+          "legendFormat": "Risk Score",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#10b981", "value": null },
+              { "color": "#3b82f6", "value": 0.2 },
+              { "color": "#f59e0b", "value": 0.4 },
+              { "color": "#f97316", "value": 0.6 },
+              { "color": "#ef4444", "value": 0.75 }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Sliding-Window Shannon Entropy (Threshold > 7.85 bits/byte)",
+      "type": "gauge",
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 1 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "max(process_write_entropy_bits)",
+          "legendFormat": "Max Write Entropy",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 8,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#10b981", "value": null },
+              { "color": "#eab308", "value": 6.0 },
+              { "color": "#f97316", "value": 7.2 },
+              { "color": "#ef4444", "value": 7.85 }
+            ]
+          },
+          "unit": "none"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Canary Tripwire Status (0 = INTACT, 1 = COMPROMISED)",
+      "type": "stat",
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 1 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "max(canary_tripwire_status)",
+          "legendFormat": "Tripwire Status",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "green", "text": "🛡️ ALL CANARIES INTACT" }, "1": { "color": "red", "text": "🚨 TRIPWIRE DETONATED" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Inhibit Recovery Commands (vssadmin/wmic)",
+      "type": "stat",
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 1 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(recovery_inhibition_attempts_total)",
+          "legendFormat": "Shadow Copy Deletion Calls",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "id": 101,
+      "title": "📈 Real-Time Multi-Vector Behavioral Telemetry Streams",
+      "type": "row"
+    },
+    {
+      "id": 5,
+      "title": "Real-Time File Write Entropy Over Time (bits/byte)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "process_write_entropy_bits",
+          "legendFormat": "{{ process_name }} (PID: {{ pid }})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Process Threat Scores Ranking",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "process_threat_score > 0.3",
+          "legendFormat": "{{ process_name }} (PID: {{ pid }})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 102,
+      "title": "🌐 Network Lateral Movement, C2 Beaconing & Exfiltration Velocity",
+      "type": "row"
+    },
+    {
+      "id": 7,
+      "title": "Outbound Throughput Velocity (MB/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 18 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "network_bandwidth_out_mb_rate",
+          "legendFormat": "Outbound Throughput MB/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Lateral Scans (SMB 445 / RPC 135 / RDP 3389) & C2 Beacons",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 18 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "network_lateral_scan_attempts_total",
+          "legendFormat": "Lateral Attempts Port {{ port }}",
+          "refId": "A"
+        },
+        {
+          "expr": "network_c2_beacons_total",
+          "legendFormat": "C2 Beacons",
+          "refId": "B"
+        }
+      ]
+    }
+  ],
+  "refresh": "2s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["ransomware", "early-detection", "infosec", "edr", "enterprise"],
+  "time": { "from": "now-15m", "to": "now" },
+  "timezone": "browser",
+  "title": "Ransomware Early Detection & Incident Response Command Center",
+  "version": 1
+}

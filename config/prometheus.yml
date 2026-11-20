@@ -1,0 +1,67 @@
+# Prometheus Configuration for Ransomware Behaviour Analysis and Early Warning Framework
+# Enterprise Real-Time Observability Pipeline
+
+global:
+  scrape_interval: 2s
+  evaluation_interval: 2s
+  scrape_timeout: 1s
+  external_labels:
+    framework: "Ransomware_Early_Warning"
+    node_id: "endpoint-kali-soc01"
+    environment: "sandbox_soc"
+
+rule_files:
+  - "alert.rules.yml"
+
+scrape_configs:
+  # Scrape target for the unified telemetry & SOC engine endpoint (Port 8000)
+  - job_name: "ransomware_early_detection_unified"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["127.0.0.1:8000"]
+        labels:
+          environment: "production_endpoint"
+          host: "kali-edr-node"
+
+  # Scrape targets for the 6 individual modular telemetry exporters
+  - job_name: "t2_host_process_telemetry"
+    metrics_path: "/metrics/process"
+    static_configs:
+      - targets: ["127.0.0.1:8000"]
+        labels:
+          module: "T2_Host_Process"
+
+  - job_name: "t3_filesystem_entropy_telemetry"
+    metrics_path: "/metrics/entropy"
+    static_configs:
+      - targets: ["127.0.0.1:8000"]
+        labels:
+          module: "T3_Filesystem_Entropy"
+
+  - job_name: "t4_identity_auth_telemetry"
+    metrics_path: "/metrics/auth"
+    static_configs:
+      - targets: ["127.0.0.1:8000"]
+        labels:
+          module: "T4_Identity_Auth"
+
+  - job_name: "t5_network_exfil_telemetry"
+    metrics_path: "/metrics/network"
+    static_configs:
+      - targets: ["127.0.0.1:8000"]
+        labels:
+          module: "T5_Network_Exfil"
+
+  - job_name: "t6_defense_evasion_telemetry"
+    metrics_path: "/metrics/defense_evasion"
+    static_configs:
+      - targets: ["127.0.0.1:8000"]
+        labels:
+          module: "T6_Defense_Evasion"
+
+  - job_name: "t7_deception_tripwire_telemetry"
+    metrics_path: "/metrics/canary"
+    static_configs:
+      - targets: ["127.0.0.1:8000"]
+        labels:
+          module: "T7_Deception_Tripwire"

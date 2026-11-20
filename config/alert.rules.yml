@@ -1,0 +1,67 @@
+# Prometheus Alert Rules for Early Ransomware Detection
+# Formulated for Enterprise Multi-Vector Detection
+
+groups:
+  - name: ransomware_early_warning_rules
+    rules:
+      # Rule 1: High Write Entropy Rule
+      # Fires when process_write_entropy_bits > 7.85 across >=3 consecutive evaluation windows within 30 seconds
+      - alert: HighWriteEntropyRule
+        expr: process_write_entropy_bits > 7.85
+        for: 6s
+        labels:
+          severity: critical
+          framework: multi_vector
+          mitre_technique: T1486
+        annotations:
+          summary: "Cryptographic Encryption Activity Detected (High Write Entropy)"
+          description: "PID {{ $labels.pid }} ({{ $labels.process_name }}) is writing data with sliding-window Shannon entropy {{ $value }} bits/byte (Threshold > 7.85). Indicates active encryption routines."
+
+      # Rule 2: Recovery Inhibition Rule
+      # Triggers on matches for vssadmin delete shadows or wmic shadowcopy delete
+      - alert: RecoveryInhibitionRule
+        expr: recovery_inhibition_attempts_total > 0
+        for: 0s
+        labels:
+          severity: critical
+          framework: multi_vector
+          mitre_technique: T1490
+        annotations:
+          summary: "Inhibit System Recovery Attempt Detected"
+          description: "Adversary attempted Volume Shadow Copy destruction: {{ $labels.command }}. Executed by PID {{ $labels.pid }}."
+
+      # Rule 3: Canary Compromise Rule
+      # Triggers an instant critical alert when canary_tripwire_status == 1
+      - alert: CanaryCompromiseRule
+        expr: canary_tripwire_status == 1
+        for: 0s
+        labels:
+          severity: critical
+          framework: multi_vector
+          mitre_technique: T1486
+          deception_vector: zero_false_positive
+        annotations:
+          summary: "TRIPWIRE BREACH: Decoy Canary File Compromised"
+          description: "Decoy canary file {{ $labels.canary_file }} tampered, modified, or deleted. Sub-second zero-false-positive ransomware tripwire triggered."
+
+      # Rule 4: Composite Threat Escalation
+      # Fires when composite threat score >= 0.75 (HIGH) or >= 0.88 (CRITICAL)
+      - alert: CompositeThreatScoreHigh
+        expr: composite_threat_score >= 0.75 and composite_threat_score < 0.88
+        for: 2s
+        labels:
+          severity: high
+          framework: multi_vector
+        annotations:
+          summary: "Elevated Ransomware Risk Score (HIGH)"
+          description: "Composite multi-vector threat score has crossed 0.75 (Current: {{ $value }}). Immediate analyst review required."
+
+      - alert: CompositeThreatScoreCritical
+        expr: composite_threat_score >= 0.88
+        for: 0s
+        labels:
+          severity: critical
+          framework: multi_vector
+        annotations:
+          summary: "EMERGENCY: Composite Ransomware Risk Score CRITICAL"
+          description: "Composite multi-vector threat score has reached critical threshold {{ $value }}. Automatic containment initiated."

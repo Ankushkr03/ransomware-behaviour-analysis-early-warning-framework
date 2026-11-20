@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC Central Command - Ransomware Early Detection & Containment Framework</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom SOC CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Top Floating Toast Notification for Simulation & Containment Feedback -->
+    <div id="socNotificationToast" class="toast align-items-center text-bg-primary border-0 soc-toast d-none" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center">
+                <i class="fa-solid fa-bell text-warning fs-5 me-2" id="toastIcon"></i>
+                <span id="toastMessage" class="fw-semibold">Action executed successfully.</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="hideToast()"></button>
+        </div>
+    </div>
+
+    <!-- Top Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-soc-navbar px-3 sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <i class="fa-solid fa-shield-virus text-danger fs-3 me-2"></i>
+                <div>
+                    <span class="brand-title">RANSOMGUARD EDR</span>
+                    <small class="d-block brand-subtitle">Enterprise Behavioral Ransomware Detection & Containment Command Center</small>
+                </div>
+            </a>
+            
+            <div class="d-flex align-items-center ms-auto">
+                <span class="badge bg-dark text-light border border-secondary me-3 px-3 py-2">
+                    <i class="fa-solid fa-server text-info me-1"></i> Node: <strong id="node-hostname">{{ hostname }}</strong>
+                </span>
+                <span class="badge bg-success-subtle text-success border border-success me-3 px-3 py-2" id="network-status-badge">
+                    <i class="fa-solid fa-network-wired me-1"></i> Connections: <strong id="network-status-text">ONLINE</strong>
+                </span>
+                <span class="badge bg-success-subtle text-success border border-success me-3 px-3 py-2" id="auto-response-badge">
+                    <i class="fa-solid fa-robot me-1"></i> Auto-Containment: <strong>ACTIVE</strong>
+                </span>
+                <button class="btn btn-outline-success btn-sm fw-bold me-2" id="btn-resume-services-nav" onclick="resumeAllServicesNormal()" title="Restore connections and resume all services to pre-attack baseline">
+                    <i class="fa-solid fa-rotate-left me-1"></i> Resume Services (Normal)
+                </button>
+                <a href="/metrics" target="_blank" class="btn btn-outline-info btn-sm me-2">
+                    <i class="fa-solid fa-chart-line me-1"></i> Prometheus /metrics
+                </a>
+                <button class="btn btn-danger btn-sm" onclick="triggerFullAttackSim()">
+                    <i class="fa-solid fa-biohazard me-1"></i> Test Ransomware Attack
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container-fluid py-3 px-4">
+        
+        <!-- Live Alert Banner (Hidden by default, shown on high/critical) -->
+        <div id="alert-banner" class="alert alert-danger d-none shadow-lg animate-pulse" role="alert">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <i class="fa-solid fa-triangle-exclamation fs-3 me-2 text-danger"></i>
+                    <strong id="alert-banner-title">CRITICAL SECURITY ALERT:</strong> 
+                    <span id="alert-banner-text" class="fw-semibold">Suspicious ransomware behaviors detected!</span>
+                </div>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-success fw-bold me-2 shadow-sm" onclick="resumeAllServicesNormal()" id="btn-resume-services-banner" title="Restore connections and resume all services to normal baseline">
+                        <i class="fa-solid fa-rotate-left me-1"></i> Resume All Services (Restore Normal)
+                    </button>
+                    <button class="btn btn-sm btn-dark me-2" onclick="openReportModal()">
+                        <i class="fa-solid fa-file-shield me-1"></i> View Forensic Report
+                    </button>
+                    <button class="btn btn-sm btn-outline-light" onclick="dismissAlertBanner()">Dismiss</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 1: Global Health & Threat Radar -->
+        <div class="row g-3 mb-4">
+            <!-- Composite Threat Score & Risk Index Card (Interactive / Clickable) -->
+            <div class="col-xl-6 col-lg-6">
+                <div class="card soc-card risk-card-clickable h-100" onclick="openRiskFormulaModal()" title="Click to inspect Risk Index mathematical formula & live real-time factor weights">
+                    <div class="card-header bg-soc-header d-flex justify-content-between align-items-center">
+                        <span class="fw-bold"><i class="fa-solid fa-gauge-high text-warning me-2"></i>Composite Threat Score & Risk Index</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fw-bold" onclick="openRiskFormulaModal(); event.stopPropagation();">
+                                <i class="fa-solid fa-calculator me-1"></i> Formula & Breakdown
+                            </button>
+                            <span id="risk-level-badge" class="badge bg-success px-3 py-1 fw-bold">Normal</span>
+                        </div>
+                    </div>
+                    <div class="card-body text-center d-flex flex-column justify-content-center py-3">
+                        <div class="score-dial my-2 position-relative">
+                            <h1 class="display-3 fw-bold mb-0" id="risk-score-display" style="color: #10b981;">0.0</h1>
+                            <span class="text-secondary text-uppercase fw-bold small">Risk Index (0 - 100)</span>
+                            <div class="mt-2">
+                                <span class="badge px-3 py-1 rounded-pill" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.5); color: #fbbf24;">
+                                    <i class="fa-solid fa-hand-pointer me-1"></i> Click anywhere on this card to view calculation formula & live factor weights
+                                </span>
+                            </div>
+                        </div>
+                        <div class="progress my-2 bg-dark border border-secondary" style="height: 14px;">
+                            <div id="risk-progress-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <p class="text-secondary small mt-2 mb-0" id="recommended-action-text">
+                            Policy: <strong class="text-light">Continue monitoring.</strong>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-time Shannon Entropy Card -->
+            <div class="col-xl-6 col-lg-6">
+                <div class="card soc-card h-100">
+                    <div class="card-header bg-soc-header d-flex justify-content-between align-items-center">
+                        <span class="fw-bold"><i class="fa-solid fa-wave-square text-info me-2"></i>Sliding-Window Shannon Entropy</span>
+                        <span class="badge bg-dark border border-secondary text-light">Threshold: 7.85 bits/byte</span>
+                    </div>
+                    <div class="card-body d-flex flex-column justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <span class="fs-4 fw-bold text-info" id="current-entropy-val">0.00</span>
+                                <span class="text-secondary ms-1">bits/byte</span>
+                            </div>
+                            <div>
+                                <span class="text-secondary me-1">Consecutive Hits:</span>
+                                <span class="badge bg-dark border border-info text-info fw-bold" id="consec-entropy-hits">0 / 3</span>
+                            </div>
+                        </div>
+                        <div style="height: 130px;">
+                            <canvas id="entropyMiniChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: The 6 Telemetry Submodules Status Grid (Clickable Interactive Vector Cards) -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="text-light fw-bold mb-0">
+                <i class="fa-solid fa-network-wired text-info me-2"></i>Multi-Vector Behavioral Telemetry Streams (6 Modules)
+            </h5>
+            <small class="text-secondary fw-normal">
+                <i class="fa-solid fa-hand-pointer text-info me-1"></i>Click any vector card to inspect heuristics, formulas, & live trigger evidence
+            </small>
+        </div>
+        <div class="row g-3 mb-4">
+            <!-- T2 -->
+            <div class="col-md-4 col-lg-2">
+                <div class="card soc-card telemetry-interactive-card h-100 text-center p-3" onclick="openTelemetryVectorModal('t2')" title="Click to inspect T2 Host & Process heuristics and live flagged processes">
+                    <span class="badge bg-dark border border-secondary mb-2 text-info">T2: Host & Process</span>
+                    <i class="fa-solid fa-microchip fs-3 text-primary my-1"></i>
+                    <h4 class="fw-bold mt-1 mb-0 text-light" id="telemetry-t2-count">0</h4>
+                    <span class="text-secondary small">Flagged Processes</span>
+                    <small class="text-info mt-1 d-block" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-info me-1"></i>Inspect Vector</small>
+                </div>
+            </div>
+            <!-- T3 -->
+            <div class="col-md-4 col-lg-2">
+                <div class="card soc-card telemetry-interactive-card h-100 text-center p-3" onclick="openTelemetryVectorModal('t3')" title="Click to inspect T3 Shannon Entropy calculations, write bursts, and mass rename telemetry">
+                    <span class="badge bg-dark border border-secondary mb-2 text-info">T3: Entropy & FS</span>
+                    <i class="fa-solid fa-file-code fs-3 text-info my-1"></i>
+                    <h4 class="fw-bold mt-1 mb-0 text-light" id="telemetry-t3-entropy">0.00</h4>
+                    <span class="text-secondary small">Sliding Entropy</span>
+                    <small class="text-info mt-1 d-block" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-info me-1"></i>Inspect Vector</small>
+                </div>
+            </div>
+            <!-- T4 -->
+            <div class="col-md-4 col-lg-2">
+                <div class="card soc-card telemetry-interactive-card h-100 text-center p-3" onclick="openTelemetryVectorModal('t4')" title="Click to inspect T4 Credential dumping, LSASS memory handles, and Logon Type 3 anomalies">
+                    <span class="badge bg-dark border border-secondary mb-2 text-info">T4: Identity & Auth</span>
+                    <i class="fa-solid fa-user-shield fs-3 text-warning my-1"></i>
+                    <h4 class="fw-bold mt-1 mb-0 text-light" id="telemetry-t4-creds">0</h4>
+                    <span class="text-secondary small">Cred Dumps / Logon 3</span>
+                    <small class="text-info mt-1 d-block" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-info me-1"></i>Inspect Vector</small>
+                </div>
+            </div>
+            <!-- T5 -->
+            <div class="col-md-4 col-lg-2">
+                <div class="card soc-card telemetry-interactive-card h-100 text-center p-3" onclick="openTelemetryVectorModal('t5')" title="Click to inspect T5 C2 beaconing signals, lateral movement sweeps (SMB/RDP), and exfiltration rate">
+                    <span class="badge bg-dark border border-secondary mb-2 text-info">T5: Network & Exfil</span>
+                    <i class="fa-solid fa-satellite-dish fs-3 text-success my-1"></i>
+                    <h4 class="fw-bold mt-1 mb-0 text-light" id="telemetry-t5-beacons">0</h4>
+                    <span class="text-secondary small">C2 Beacons / Lateral</span>
+                    <small class="text-info mt-1 d-block" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-info me-1"></i>Inspect Vector</small>
+                </div>
+            </div>
+            <!-- T6 -->
+            <div class="col-md-4 col-lg-2">
+                <div class="card soc-card telemetry-interactive-card h-100 text-center p-3" onclick="openTelemetryVectorModal('t6')" title="Click to inspect T6 Recovery inhibition, vssadmin shadow deletions, and defense evasion commands">
+                    <span class="badge bg-dark border border-secondary mb-2 text-info">T6: Defense Evasion</span>
+                    <i class="fa-solid fa-ban fs-3 text-danger my-1"></i>
+                    <h4 class="fw-bold mt-1 mb-0 text-light" id="telemetry-t6-inhibition">0</h4>
+                    <span class="text-secondary small">vssadmin / Shadows</span>
+                    <small class="text-info mt-1 d-block" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-info me-1"></i>Inspect Vector</small>
+                </div>
+            </div>
+            <!-- T7 -->
+            <div class="col-md-4 col-lg-2">
+                <div class="card soc-card telemetry-interactive-card h-100 text-center p-3" onclick="openTelemetryVectorModal('t7')" title="Click to inspect T7 Canary decoy integrity, who triggered compromised decoys, and zero-false-positive telemetry">
+                    <span class="badge bg-dark border border-secondary mb-2 text-info">T7: Deception Tripwires</span>
+                    <i class="fa-solid fa-bomb fs-3 text-danger my-1"></i>
+                    <h4 class="fw-bold mt-1 mb-0 text-light" id="telemetry-t7-breaches">0</h4>
+                    <span class="text-secondary small">Compromised Decoys</span>
+                    <small class="text-info mt-1 d-block" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-info me-1"></i>Inspect Vector</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 3: SOC Control Center & Containment Actions -->
+        <div class="row g-3 mb-4">
+            <!-- Left: Containment Control Panel -->
+            <div class="col-lg-6">
+                <div class="card soc-card h-100">
+                    <div class="card-header bg-soc-header d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-handcuffs text-danger me-2"></i>Automated Containment & Incident Response</span>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="autoResponseToggle" checked onchange="toggleAutoResponse(this.checked)">
+                            <label class="form-check-label small text-secondary" for="autoResponseToggle">Auto-Containment</label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-secondary small">
+                            When threat score &ge; <strong>0.75</strong> or a Canary Tripwire is breached, automated kernel-level containment is dispatched immediately.
+                        </p>
+                        
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-6">
+                                <button class="btn btn-outline-danger w-100 text-start py-2" onclick="isolateNetwork()">
+                                    <i class="fa-solid fa-network-wired me-2"></i>
+                                    <span>Isolate Network (Quarantine)</span>
+                                </button>
+                            </div>
+                            <div class="col-sm-6">
+                                <button class="btn btn-outline-success w-100 text-start py-2" onclick="restoreNetwork()">
+                                    <i class="fa-solid fa-plug me-2"></i>
+                                    <span>Restore Endpoint Network</span>
+                                </button>
+                            </div>
+                            <div class="col-sm-6">
+                                <button class="btn btn-outline-warning w-100 text-start py-2" onclick="openNotifyAdminModal()" title="Configure alert recipients, edit contact channels, and dispatch emergency alerts">
+                                    <i class="fa-solid fa-bell me-2"></i>
+                                    <span>Notify SOC Admin (Emergency)</span>
+                                </button>
+                            </div>
+                            <div class="col-sm-6">
+                                <button class="btn btn-outline-info w-100 text-start py-2" onclick="generateIncidentReport()">
+                                    <i class="fa-solid fa-file-contract me-2"></i>
+                                    <span>Generate Forensic Report</span>
+                                </button>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <button class="btn btn-success w-100 py-2 fw-bold shadow-sm" onclick="resumeAllServicesNormal()" id="btn-resume-services-containment" title="Restore connections, re-arm canaries, and resume all services to pre-attack baseline">
+                                    <i class="fa-solid fa-rotate-left me-2"></i>
+                                    <span>Resume All Services (Restore Normal Baseline)</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Manual Process Kill Input -->
+                        <div class="input-group input-group-sm mb-2">
+                            <span class="input-group-text bg-dark border-secondary text-secondary">Terminate PID</span>
+                            <input type="number" id="manualPidInput" class="form-control bg-dark border-secondary text-light" placeholder="e.g. 8842">
+                            <button class="btn btn-danger" onclick="manualKillPid()">
+                                <i class="fa-solid fa-skull me-1"></i> Terminate (SIGKILL)
+                            </button>
+                        </div>
+
+                        <!-- Containment Status Feed -->
+                        <div class="mt-3">
+                            <span class="text-light fw-bold small">Recent Containment Actions Executed:</span>
+                            <div id="containment-action-feed" class="action-feed-box mt-1">
+                                <span class="text-secondary small">No containment actions triggered yet.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Controlled Attack Simulation Lab (Multi-Select Attack Matrix + Simultaneous Run) -->
+            <div class="col-lg-6">
+                <div class="card soc-card h-100">
+                    <div class="card-header bg-soc-header d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-vial-virus text-warning me-2"></i>Controlled Ransomware Testing Suite</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-danger fw-bold" id="selectedCountBadge">1 Attack Selected</span>
+                            <span class="badge bg-info" id="sim-status-badge">READY TO TEST</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Simulation Live Activity Banner -->
+                        <div id="sim-live-banner" class="p-2 px-3 rounded mb-3 bg-dark border border-secondary d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center">
+                                <i class="fa-solid fa-info-circle text-info fs-5 me-2" id="sim-banner-icon"></i>
+                                <span class="small text-light" id="sim-banner-text">Select one or more attack scenarios below, then click <strong>Run Simultaneous Attack</strong>.</span>
+                            </div>
+                            <span class="badge bg-secondary" id="sim-step-badge">Idle</span>
+                        </div>
+
+                        <!-- Search Filter & Quick Preset Controls -->
+                        <div class="mb-2">
+                            <div class="input-group input-group-sm mb-2">
+                                <span class="input-group-text bg-dark text-secondary border-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                                <input type="text" class="form-control bg-dark text-light border-secondary" id="attackSearchInput" placeholder="Filter 36 strains by name, extension (.basta, .hub, .cts...), or technique..." oninput="filterAttackStrains()">
+                                <button class="btn btn-outline-secondary text-secondary" type="button" onclick="document.getElementById('attackSearchInput').value=''; filterAttackStrains();" title="Clear filter"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                                <label class="form-label text-light small fw-bold mb-0">
+                                    <i class="fa-solid fa-layer-group text-danger me-1"></i>Select Ransomware Strains (One or More):
+                                </label>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fw-semibold" style="font-size: 0.75rem;" onclick="setAttackPreset('all')" title="Select all 36 real ransomware strains">
+                                        <i class="fa-solid fa-check-double me-1"></i>All 36
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info btn-sm py-0 px-2 fw-semibold" style="font-size: 0.75rem;" onclick="setAttackPreset('triple')" title="WannaCry + LockBit 3.0 + BlackCat">
+                                        <i class="fa-solid fa-biohazard me-1"></i>Triple Threat
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 fw-semibold" style="font-size: 0.75rem;" onclick="setAttackPreset('modern')" title="Black Basta + Play + Cactus + Rhysida + RansomHub">
+                                        <i class="fa-solid fa-fire me-1"></i>Modern Threats
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2 fw-semibold" style="font-size: 0.75rem;" onclick="setAttackPreset('historic')" title="NotPetya + WannaCry + BadRabbit + SamSam + GandCrab">
+                                        <i class="fa-solid fa-clock-rotate-left me-1"></i>Historic Outbreaks
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fw-semibold text-light" style="font-size: 0.75rem;" onclick="setAttackPreset('clear')" title="Reset to single strain">
+                                        <i class="fa-solid fa-rotate-left me-1"></i>Reset
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Multi-Select Attack Grid -->
+                        <div class="attack-matrix-container p-2 rounded bg-black border border-secondary mb-3" style="max-height: 280px; overflow-y: auto;">
+                            <div class="row g-2" id="attackCheckboxesGrid">
+                                <div class="col-md-6 attack-strain-col" data-strain="wannacry">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0 selected" id="card-wannacry" for="chk-wannacry">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-wannacry" value="wannacry" checked onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">💥 1. WannaCry 2.0</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">MS17-010 SMB &bull; <span class="badge bg-danger py-0 px-1">.wncry</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="lockbit3">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-lockbit3" for="chk-lockbit3">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-lockbit3" value="lockbit3" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">⚡ 2. LockBit 3.0 Black</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">ChaCha20 Anti-EDR &bull; <span class="badge bg-danger py-0 px-1">.lockbit</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="blackcat">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-blackcat" for="chk-blackcat">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-blackcat" value="blackcat" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🐈‍⬛ 3. BlackCat / ALPHV</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Rust Token Escalation &bull; <span class="badge bg-danger py-0 px-1">.alphv</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="ryuk">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-ryuk" for="chk-ryuk">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-ryuk" value="ryuk" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">☠️ 4. Ryuk Enterprise</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">PsExec Backup Killer &bull; <span class="badge bg-danger py-0 px-1">.ryk</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="conti">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-conti" for="chk-conti">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-conti" value="conti" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">⚡ 5. Conti High-Perf</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">32-Thread IOCP Engine &bull; <span class="badge bg-danger py-0 px-1">.conti</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="revil">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-revil" for="chk-revil">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-revil" value="revil" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">👑 6. REvil / Sodinokibi</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Safe-Mode Boot &bull; <span class="badge bg-danger py-0 px-1">.revil</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="darkside">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-darkside" for="chk-darkside">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-darkside" value="darkside" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🌑 7. DarkSide Threat</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">AD LDAP Double-Exfil &bull; <span class="badge bg-danger py-0 px-1">.darkside</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="akira">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-akira" for="chk-akira">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-akira" value="akira" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🗡️ 8. Akira Target</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">ESXi Hypervisor Cipher &bull; <span class="badge bg-danger py-0 px-1">.akira</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="royal">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-royal" for="chk-royal">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-royal" value="royal" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🏰 9. Royal Ransomware</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Partial Byte Evasion &bull; <span class="badge bg-danger py-0 px-1">.royal</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="maze">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-maze" for="chk-maze">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-maze" value="maze" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🌀 10. Maze Syndicate</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Double Extortion C2 &bull; <span class="badge bg-danger py-0 px-1">.maze</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="clop">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-clop" for="chk-clop">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-clop" value="clop" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🥊 11. Clop (CL0P)</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Zero-Day Log Wipe &bull; <span class="badge bg-danger py-0 px-1">.clop</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="hive">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-hive" for="chk-hive">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-hive" value="hive" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🐝 12. Hive Keystream</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">In-Memory Scraping &bull; <span class="badge bg-danger py-0 px-1">.hive</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="blackbasta">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-blackbasta" for="chk-blackbasta">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-blackbasta" value="blackbasta" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🦇 13. Black Basta</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Qakbot ChaCha20 &bull; <span class="badge bg-danger py-0 px-1">.basta</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="play">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-play" for="chk-play">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-play" value="play" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🎮 14. Play (PlayCrypt)</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">ProxyNotShell 2-Block &bull; <span class="badge bg-danger py-0 px-1">.play</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="rhysida">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-rhysida" for="chk-rhysida">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-rhysida" value="rhysida" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🐉 15. Rhysida Syndicate</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Healthcare Targeting &bull; <span class="badge bg-danger py-0 px-1">.rhysida</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="medusa">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-medusa" for="chk-medusa">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-medusa" value="medusa" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🐍 16. Medusa Locker</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">RDP SQL Service Killer &bull; <span class="badge bg-danger py-0 px-1">.medusa</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="blacksuit">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-blacksuit" for="chk-blacksuit">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-blacksuit" value="blacksuit" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🕴️ 17. BlackSuit</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Royal/Conti Poly1305 &bull; <span class="badge bg-danger py-0 px-1">.blacksuit</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="cactus">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-cactus" for="chk-cactus">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-cactus" value="cactus" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🌵 18. Cactus Threat</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">7z Encrypted Binary &bull; <span class="badge bg-danger py-0 px-1">.cts</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="babuk">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-babuk" for="chk-babuk">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-babuk" value="babuk" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🐘 19. Babuk Locker</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">ChaCha8 ESXi Hypervisor &bull; <span class="badge bg-danger py-0 px-1">.babyk</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="bianlian">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-bianlian" for="chk-bianlian">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-bianlian" value="bianlian" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🎭 20. BianLian Go</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Go Multithreaded Exfil &bull; <span class="badge bg-danger py-0 px-1">.bianlian</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="qilin">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-qilin" for="chk-qilin">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-qilin" value="qilin" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🦄 21. Qilin (Agenda)</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Rust GPO SafeMode &bull; <span class="badge bg-danger py-0 px-1">.qilin</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="ransomhub">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-ransomhub" for="chk-ransomhub">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-ransomhub" value="ransomhub" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🌐 22. RansomHub</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">BYOVD Kernel Blinding &bull; <span class="badge bg-danger py-0 px-1">.hub</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="notpetya">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-notpetya" for="chk-notpetya">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-notpetya" value="notpetya" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">☢️ 23. NotPetya Wiper</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">MBR Overwrite Destructor &bull; <span class="badge bg-danger py-0 px-1">.encrypted</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="badrabbit">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-badrabbit" for="chk-badrabbit">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-badrabbit" value="badrabbit" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🐇 24. BadRabbit Outbreak</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">DiskCryptor FakeFlash &bull; <span class="badge bg-danger py-0 px-1">.encrypted</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="samsam">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-samsam" for="chk-samsam">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-samsam" value="samsam" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🏥 25. SamSam Healthcare</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">JBoss Exploitation &bull; <span class="badge bg-danger py-0 px-1">.weapologize</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="gandcrab">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-gandcrab" for="chk-gandcrab">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-gandcrab" value="gandcrab" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🦀 26. GandCrab Fleet</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">RIG Exploit Kit Fleet &bull; <span class="badge bg-danger py-0 px-1">.CRAB</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="dharma">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-dharma" for="chk-dharma">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-dharma" value="dharma" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🛡️ 27. Dharma / CrySiS</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">RDP Brute Force Suite &bull; <span class="badge bg-danger py-0 px-1">.dharma</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="phobos">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-phobos" for="chk-phobos">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-phobos" value="phobos" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🌘 28. Phobos Threat</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Session Killer Payload &bull; <span class="badge bg-danger py-0 px-1">.phobos</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="stopdjvu">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-stopdjvu" for="chk-stopdjvu">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-stopdjvu" value="stopdjvu" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🛑 29. STOP / Djvu</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Torrent RedLine Bundle &bull; <span class="badge bg-danger py-0 px-1">.djvu</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="netwalker">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-netwalker" for="chk-netwalker">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-netwalker" value="netwalker" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🕸️ 30. Netwalker (Mailto)</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">PowerShell In-Memory DLL &bull; <span class="badge bg-danger py-0 px-1">.mailto</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="ragnarlocker">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-ragnarlocker" for="chk-ragnarlocker">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-ragnarlocker" value="ragnarlocker" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🛡️ 31. Ragnar Locker</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">VirtualBox Micro-VM Evasion &bull; <span class="badge bg-danger py-0 px-1">.ragnar</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="doppelpaymer">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-doppelpaymer" for="chk-doppelpaymer">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-doppelpaymer" value="doppelpaymer" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">👥 32. DoppelPaymer</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Evil Corp Dridex Link &bull; <span class="badge bg-danger py-0 px-1">.locked</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="cuba">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-cuba" for="chk-cuba">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-cuba" value="cuba" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🇨🇺 33. Cuba Ransomware</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">BYOVD Driver KSec Abuse &bull; <span class="badge bg-danger py-0 px-1">.cuba</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="avaddon">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-avaddon" for="chk-avaddon">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-avaddon" value="avaddon" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">⚔️ 34. Avaddon Syndicate</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Triple Extortion DDoS &bull; <span class="badge bg-danger py-0 px-1">.avdn</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="snatch">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-snatch" for="chk-snatch">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-snatch" value="snatch" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🪓 35. Snatch Ransomware</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">Forced SafeBoot Service &bull; <span class="badge bg-danger py-0 px-1">.snatch</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6 attack-strain-col" data-strain="mallox">
+                                    <label class="attack-check-card d-flex align-items-center w-100 mb-0" id="card-mallox" for="chk-mallox">
+                                        <input type="checkbox" class="form-check-input me-2 mt-0 attack-strain-chk" id="chk-mallox" value="mallox" onchange="onAttackCheckboxChanged()">
+                                        <div class="flex-grow-1 text-truncate">
+                                            <span class="d-block text-light fw-bold small text-truncate">🏢 36. Mallox (TargetCo)</span>
+                                            <small class="text-secondary" style="font-size: 0.72rem;">MS SQL Dictionary Attack &bull; <span class="badge bg-danger py-0 px-1">.mallox</span></small>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Synchronized Legacy Select Element (kept for backwards compatibility & tests) -->
+                        <select class="form-select d-none" id="attackScenarioSelect">
+                            <option value="wannacry" selected>WannaCry 2.0</option>
+                            <option value="lockbit3">LockBit 3.0 Black</option>
+                            <option value="blackcat">BlackCat / ALPHV</option>
+                            <option value="ryuk">Ryuk Enterprise</option>
+                            <option value="conti">Conti High-Perf</option>
+                            <option value="revil">REvil / Sodinokibi</option>
+                            <option value="darkside">DarkSide Threat</option>
+                            <option value="akira">Akira Target</option>
+                            <option value="royal">Royal Ransomware</option>
+                            <option value="maze">Maze Syndicate</option>
+                            <option value="clop">Clop (CL0P)</option>
+                            <option value="hive">Hive Keystream</option>
+                            <option value="blackbasta">Black Basta</option>
+                            <option value="play">Play (PlayCrypt)</option>
+                            <option value="rhysida">Rhysida Syndicate</option>
+                            <option value="medusa">Medusa Locker</option>
+                            <option value="blacksuit">BlackSuit</option>
+                            <option value="cactus">Cactus Threat</option>
+                            <option value="babuk">Babuk Locker</option>
+                            <option value="bianlian">BianLian Go</option>
+                            <option value="qilin">Qilin (Agenda)</option>
+                            <option value="ransomhub">RansomHub</option>
+                            <option value="notpetya">NotPetya Wiper</option>
+                            <option value="badrabbit">BadRabbit Outbreak</option>
+                            <option value="samsam">SamSam Healthcare</option>
+                            <option value="gandcrab">GandCrab Fleet</option>
+                            <option value="dharma">Dharma / CrySiS</option>
+                            <option value="phobos">Phobos Threat</option>
+                            <option value="stopdjvu">STOP / Djvu</option>
+                            <option value="netwalker">Netwalker (Mailto)</option>
+                            <option value="ragnarlocker">Ragnar Locker</option>
+                            <option value="doppelpaymer">DoppelPaymer</option>
+                            <option value="cuba">Cuba Ransomware</option>
+                            <option value="avaddon">Avaddon Syndicate</option>
+                            <option value="snatch">Snatch Ransomware</option>
+                            <option value="mallox">Mallox (TargetCo)</option>
+                        </select>
+
+                        <!-- Dynamic Scenario Description Card -->
+                        <div id="scenarioDescriptionBox" class="p-3 rounded bg-black border border-secondary mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge bg-danger" id="scenarioBadge">SIMULTANEOUS ADVERSARY ATTACK</span>
+                                <small class="text-info fw-bold" id="scenarioTarget">Vectors: T2, T3, T4, T5, T6, T7</small>
+                            </div>
+                            <div id="scenarioSelectedStrainsPills" class="d-flex flex-wrap gap-1 my-2">
+                                <span class="badge bg-danger">WannaCry 2.0</span>
+                            </div>
+                            <p class="small text-light mb-0" id="scenarioDescriptionText">
+                                Detonates selected ransomware strains simultaneously. The framework concurrently executes malicious processes from <code>/tmp</code>, shadow copy erasure via <code>vssadmin</code>, credential access, outbound C2 beaconing, canary tripwire compromise, and multi-thread bulk encryption.
+                            </p>
+                        </div>
+
+                        <!-- Action Run Button -->
+                        <div class="d-flex align-items-center justify-content-between pt-1">
+                            <button class="btn btn-danger px-4 py-2 fw-bold shadow" id="btnRunSelectedScenario" onclick="runSelectedScenario()">
+                                <i class="fa-solid fa-radiation me-2"></i>Run Simultaneous Attack (<span id="btnAttackCount">1 Selected</span>)
+                            </button>
+                            <span class="small text-secondary">
+                                <i class="fa-solid fa-arrow-up text-info me-1"></i>Auto-scrolls to top to watch live telemetry
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 3.5: Baseline Profiling & Timed Ransomware Benchmark Lab -->
+        <h5 class="text-light fw-bold mb-3">
+            <i class="fa-solid fa-stopwatch text-info me-2"></i>Baseline Profiling & Timed Ransomware Benchmark Lab (Validation Mode)
+        </h5>
+        <div class="row g-3 mb-4">
+            <!-- Left: Baseline Profiler -->
+            <div class="col-lg-5">
+                <div class="card soc-card h-100">
+                    <div class="card-header bg-soc-header d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-chart-area text-info me-2"></i>System Normal Baseline Profiler</span>
+                        <span id="baseline-status-badge" class="badge bg-secondary">NOT CAPTURED</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-secondary small mb-3">
+                            Continuously records benign file I/O, background process spawns, and normal entropy to establish dynamic statistical boundaries (&mu; &plusmn; 3&sigma;).
+                        </p>
+
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <label class="small text-secondary mb-0">Capture Duration:</label>
+                            <select id="baselineDurationSelect" class="form-select form-select-sm bg-dark border-secondary text-light w-auto">
+                                <option value="15">15 seconds (Quick)</option>
+                                <option value="30" selected>30 seconds (Standard)</option>
+                                <option value="60">60 seconds (Deep)</option>
+                                <option value="120">120 seconds (Comprehensive)</option>
+                            </select>
+                            <button id="startBaselineBtn" class="btn btn-outline-info btn-sm ms-auto" onclick="startBaselineCapture()">
+                                <i class="fa-solid fa-play me-1"></i> Capture Baseline
+                            </button>
+                        </div>
+
+                        <!-- Progress Bar (shown when active) -->
+                        <div id="baseline-progress-container" class="mb-3 d-none">
+                            <div class="d-flex justify-content-between small text-secondary mb-1">
+                                <span>Capturing system activity...</span>
+                                <span id="baseline-progress-text">0%</span>
+                            </div>
+                            <div class="progress bg-dark border border-secondary" style="height: 10px;">
+                                <div id="baseline-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Baseline Stats Grid -->
+                        <div class="row g-2 text-center" id="baseline-stats-grid">
+                            <div class="col-4">
+                                <div class="p-2 rounded bg-dark border border-secondary">
+                                    <small class="text-secondary d-block">Mean Entropy</small>
+                                    <strong class="text-info fs-6" id="base-mean-entropy">4.15</strong>
+                                    <small class="text-secondary d-block">bits/byte</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-2 rounded bg-dark border border-secondary">
+                                    <small class="text-secondary d-block">Std Deviation</small>
+                                    <strong class="text-warning fs-6" id="base-std-entropy">&plusmn;0.32</strong>
+                                    <small class="text-secondary d-block">variance</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-2 rounded bg-dark border border-secondary">
+                                    <small class="text-secondary d-block">&mu; + 3&sigma; Threshold</small>
+                                    <strong class="text-success fs-6" id="base-thresh-entropy">5.11</strong>
+                                    <small class="text-secondary d-block">adaptive limit</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="small text-secondary mt-3" id="baseline-timestamp-text">
+                            Last baseline calibration: <em>None captured yet</em>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Timed Benchmark Test Runner -->
+            <div class="col-lg-7">
+                <div class="card soc-card h-100">
+                    <div class="card-header bg-soc-header d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-stopwatch-20 text-warning me-2"></i>Timed Ransomware Sample Benchmark Trial</span>
+                        <span id="benchmark-status-badge" class="badge bg-secondary">STANDBY</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-secondary small mb-3">
+                            Executes a controlled ransomware sample against 40 active user documents for a fixed duration to empirically measure <strong>Detection Latency</strong>, <strong>Containment Speed</strong>, and <strong>File Preservation Rate</strong>.
+                        </p>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="small text-secondary mb-1">Ransomware Sample Profile:</label>
+                                <select id="sampleTypeSelect" class="form-select form-select-sm bg-dark border-secondary text-light">
+                                    <option value="LockBit 3.0 Emulation" selected>LockBit 3.0 Emulation (API Discovery + Canary + Fast I/O)</option>
+                                    <option value="High-Entropy Encryption Loop">High-Entropy Write Stress Test (&gt;7.9 bits/byte)</option>
+                                    <option value="Intermittent Block Encryption">Intermittent Encryption (Evasion Test)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small text-secondary mb-1">Run Duration:</label>
+                                <select id="testDurationSelect" class="form-select form-select-sm bg-dark border-secondary text-light">
+                                    <option value="15">15 seconds</option>
+                                    <option value="30" selected>30 seconds</option>
+                                    <option value="60">60 seconds</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button id="startBenchmarkBtn" class="btn btn-danger btn-sm w-100 py-1" onclick="startTimedBenchmark()">
+                                    <i class="fa-solid fa-play me-1"></i> Start Benchmark
+                                </button>
+                                <button id="stopBenchmarkBtn" class="btn btn-outline-secondary btn-sm w-100 py-1 d-none" onclick="stopTimedBenchmark()">
+                                    <i class="fa-solid fa-stop me-1"></i> Abort Run
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Active Benchmark Live Monitoring Box -->
+                        <div id="benchmark-live-box" class="p-3 rounded mb-3 bg-dark border border-secondary">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                    <span class="small text-secondary">Elapsed / Allocated Time:</span>
+                                    <strong class="text-warning ms-1" id="bench-timer-display">00:00 / 00:30</strong>
+                                </div>
+                                <div>
+                                    <span class="badge bg-info px-2" id="bench-phase-badge">READY</span>
+                                </div>
+                            </div>
+                            <div class="progress mb-3 bg-black" style="height: 8px;">
+                                <div id="bench-progress-bar" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
+                            </div>
+
+                            <div class="row g-2 text-center">
+                                <div class="col-4">
+                                    <div class="p-2 rounded bg-black border border-dark">
+                                        <small class="text-secondary d-block">Detection Latency</small>
+                                        <strong class="text-warning fs-5" id="bench-detect-latency">-- s</strong>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-2 rounded bg-black border border-dark">
+                                        <small class="text-secondary d-block">Containment Speed</small>
+                                        <strong class="text-success fs-5" id="bench-contain-latency">-- s</strong>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-2 rounded bg-black border border-dark">
+                                        <small class="text-secondary d-block">Files Preserved</small>
+                                        <strong class="text-info fs-5" id="bench-files-preserved">40 / 40 (100%)</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-secondary" id="bench-verdict-note">Target: Preserve &ge;90% of files under active encryption stress.</small>
+                            <button id="viewLastBenchReportBtn" class="btn btn-outline-info btn-sm py-0 d-none" onclick="viewLastBenchmarkReport()">
+                                <i class="fa-solid fa-certificate me-1"></i> View Validation Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 4: Flagged Processes & Canary Vault Details -->
+        <div class="row g-3 mb-4">
+            <!-- Flagged Processes Table -->
+            <div class="col-lg-6">
+                <div class="card soc-card h-100">
+                    <div class="card-header bg-soc-header d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-list-check text-primary me-2"></i>Monitored Suspicious Processes (T2)</span>
+                        <div>
+                            <span class="badge bg-secondary me-2" id="proc-table-count">0 Active</span>
+                            <small class="text-info"><i class="fa-solid fa-hand-pointer me-1"></i> Click to inspect</small>
+                        </div>
+                    </div>
+                    <div class="card-body p-0 table-responsive" style="max-height: 280px;">
+                        <table class="table table-dark table-hover table-striped mb-0 small">
+                            <thead>
+                                <tr>
+                                    <th>PID</th>
+                                    <th>Process</th>
+                                    <th>Threat</th>
+                                    <th>Command Line</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="process-table-body">
+                                {% if processes and processes|length > 0 %}
+                                    {% for p in processes %}
+                                    <tr id="proc-row-{{ p.pid }}" class="hover-row" onclick="openProcessDetailModal({{ p.pid }})" title="Click to view detailed process forensics">
+                                        <td><code>{{ p.pid }}</code></td>
+                                        <td><strong class="text-light">{{ p.name }}</strong></td>
+                                        <td><span class="badge bg-{{ 'danger' if p.threat_score >= 0.75 else ('warning' if p.threat_score >= 0.5 else 'info') }}">{{ "%.2f"|format(p.threat_score) }}</span></td>
+                                        <td class="text-truncate" style="max-width: 180px;" title="{{ p.cmdline }}">
+                                            <code class="text-info">{{ p.cmdline }}</code>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="event.stopPropagation(); killPid({{ p.pid }}, '{{ p.name }}')">
+                                                <i class="fa-solid fa-skull me-1"></i> Kill
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr><td colspan="5" class="text-secondary text-center py-3">No suspicious processes currently flagged.</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unified Deception Tripwire Vault & Canary Decoy Inventory (Merged Section) -->
+            <div class="col-lg-6">
+                <div class="card soc-card h-100">
+                    <div class="card-header bg-soc-header d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-feather text-danger me-2"></i>Deception Tripwire Vault & Canary Inventory (T7)</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-success" id="canary-vault-status-badge">5 / 5 INTACT</span>
+                            <button class="btn btn-outline-danger btn-sm py-0" onclick="resetCanaries()" title="Reset and re-arm all canaries">
+                                <i class="fa-solid fa-arrows-rotate me-1"></i>Re-Arm
+                            </button>
+                            <small class="text-info"><i class="fa-solid fa-hand-pointer me-1"></i> Click to inspect</small>
+                        </div>
+                    </div>
+                    <div class="card-body p-2" style="max-height: 280px; overflow-y: auto;">
+                        <!-- Top: Quick Visual Tripwire Status Indicators -->
+                        <div id="canary-separate-list" class="d-flex flex-wrap gap-2 mb-2 p-2 bg-dark rounded border border-secondary">
+                            {% for c in canaries %}
+                            <div class="canary-tripwire-item flex-grow-1 p-1 px-2 rounded {{ 'breached' if c.status == 'COMPROMISED' else '' }}" onclick="openCanaryDetailModal('{{ c.filename }}')" title="Click to view decoy asset details" style="cursor: pointer; background: rgba(15, 23, 42, 0.6); border: 1px solid #334155;">
+                                <div class="d-flex justify-content-between align-items-center gap-2">
+                                    <div class="text-truncate">
+                                        <i class="fa-solid {{ 'fa-file-circle-xmark text-danger' if c.status == 'COMPROMISED' else 'fa-file-shield text-success' }} me-1"></i>
+                                        <code class="text-light small">{{ c.filename }}</code>
+                                    </div>
+                                    <span class="badge {{ 'bg-danger animate-pulse' if c.status == 'COMPROMISED' else 'bg-success' }} py-1 px-2" style="font-size:0.7rem;">{{ c.status }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Bottom: Detailed Forensic Inventory Table -->
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover table-striped mb-0 small">
+                                <thead>
+                                    <tr>
+                                        <th>Decoy Asset</th>
+                                        <th>Status</th>
+                                        <th>Expected SHA-256</th>
+                                        <th>Audit Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="canary-table-body">
+                                    {% for c in canaries %}
+                                    <tr class="hover-row {{ 'table-danger' if c.status == 'COMPROMISED' else '' }}" onclick="openCanaryDetailModal('{{ c.filename }}')" title="Click to view detailed asset profile">
+                                        <td>
+                                            <i class="fa-solid {{ 'fa-file-circle-xmark text-danger' if c.status == 'COMPROMISED' else 'fa-file-shield text-success' }} me-1"></i>
+                                            <code class="text-light">{{ c.filename }}</code>
+                                        </td>
+                                        <td>
+                                            <span class="badge {{ 'bg-danger' if c.status == 'COMPROMISED' else 'bg-success' }}">{{ c.status }}</span>
+                                        </td>
+                                        <td><small><code class="text-info">{{ c.expected_hash[:10] if c.expected_hash else '--' }}...</code></small></td>
+                                        <td class="text-truncate" style="max-width: 160px;">
+                                            <small class="text-light">{{ c.breach_details or 'Integrity verified intact' }}</small>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 5: Real-Time Event Feed & Incident Reports Archive -->
+        <div class="row g-3 mb-4">
+            <!-- Event Stream (Clickable for Detail Window) -->
+            <div class="col-lg-7">
+                <div class="card soc-card h-100">
+                    <div class="card-header bg-soc-header d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-clock-rotate-left text-info me-2"></i>Live Telemetry Event Log Stream</span>
+                        <small class="text-info"><i class="fa-solid fa-hand-pointer me-1"></i> Click event to view full details</small>
+                    </div>
+                    <div class="card-body p-0 table-responsive" style="max-height: 320px;">
+                        <table class="table table-dark table-hover mb-0 small">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Module</th>
+                                    <th>Severity</th>
+                                    <th>Event Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="event-stream-body">
+                                {% if events and events|length > 0 %}
+                                    {% for ev in events[:20] %}
+                                    <tr class="hover-row" onclick="openEventDetailModal({{ loop.index0 }})" title="Click to open event detail window">
+                                        <td><small class="text-secondary">{{ ev.timestamp.split('T')[1].replace('Z','') if 'T' in ev.timestamp else ev.timestamp }}</small></td>
+                                        <td><span class="badge bg-dark border border-secondary text-info">{{ ev.code }}</span></td>
+                                        <td><span class="badge bg-{{ 'danger' if ev.severity == 'CRITICAL' else ('warning text-dark' if ev.severity == 'HIGH' else 'info') }}">{{ ev.severity }}</span></td>
+                                        <td class="text-truncate text-light" style="max-width: 380px;">{{ ev.message }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr><td colspan="4" class="text-secondary text-center py-3">Listening for multi-vector telemetry events...</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Forensic Incident Reports Archive -->
+            <div class="col-lg-5">
+                <div class="card soc-card h-100">
+                    <div class="card-header bg-soc-header d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-folder-open text-warning me-2"></i>Forensic Incident Reports</span>
+                        <button class="btn btn-outline-info btn-sm py-0" onclick="generateIncidentReport()">
+                            <i class="fa-solid fa-plus me-1"></i> New Report
+                        </button>
+                    </div>
+                    <div class="card-body p-0 table-responsive" style="max-height: 320px;">
+                        <table class="table table-dark table-hover mb-0 small">
+                            <thead>
+                                <tr>
+                                    <th>Incident ID</th>
+                                    <th>Classification</th>
+                                    <th>Threat / Vector</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reports-table-body">
+                                <tr><td colspan="5" class="text-secondary text-center py-3">No incident reports generated yet. Detonate a test simulation or await telemetry trigger.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 6: Prometheus & Grafana Configuration Guide -->
+        <div class="card soc-card mb-4">
+            <div class="card-header bg-soc-header">
+                <i class="fa-solid fa-server text-info me-2"></i>Prometheus & Grafana Stack Architecture Details
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6 class="text-light fw-bold"><i class="fa-solid fa-fire text-danger me-1"></i> Prometheus Metrics</h6>
+                        <p class="small text-secondary mb-1">
+                            Prometheus scrapes telemetry metrics via standard HTTP endpoints:
+                        </p>
+                        <ul class="small text-secondary ps-3">
+                            <li><code>http://127.0.0.1:8000/metrics</code> (Unified Feed)</li>
+                            <li><code>/metrics/process</code> &mdash; T2 Host & Process</li>
+                            <li><code>/metrics/entropy</code> &mdash; T3 File Write Entropy</li>
+                            <li><code>/metrics/auth</code> &mdash; T4 Identity & Auth</li>
+                            <li><code>/metrics/network</code> &mdash; T5 Network & Exfil</li>
+                            <li><code>/metrics/defense_evasion</code> &mdash; T6 Evasion</li>
+                            <li><code>/metrics/canary</code> &mdash; T7 Canary Tripwires</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-light fw-bold"><i class="fa-solid fa-bell text-warning me-1"></i> Behavioral Alert Rules</h6>
+                        <ul class="small text-secondary ps-3">
+                            <li><strong>HighWriteEntropyRule:</strong> <code>process_write_entropy_bits &gt; 7.85</code></li>
+                            <li><strong>RecoveryInhibitionRule:</strong> <code>recovery_inhibition_attempts_total &gt; 0</code></li>
+                            <li><strong>CanaryCompromiseRule:</strong> <code>canary_tripwire_status == 1</code></li>
+                            <li><strong>CompositeThreatScore:</strong> <code>threat_score &ge; 0.75</code></li>
+                        </ul>
+                        <span class="small text-secondary">Config file: <code>config/alert.rules.yml</code></span>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-light fw-bold"><i class="fa-solid fa-chart-simple text-info me-1"></i> Grafana Dashboard</h6>
+                        <p class="small text-secondary">
+                            Provisioned dashboard JSON is located at:
+                            <br><code>config/grafana_dashboard.json</code>.
+                            <br>Imports into Grafana 10+ with live entropy heatmaps, process rankings, and canary status banners.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom SOC JavaScript -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

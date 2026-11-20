@@ -1,0 +1,94 @@
+{
+  "system": {
+    "node_id": "endpoint-soc01",
+    "hostname": "edr-node",
+    "environment": "isolated_research_sandbox",
+    "evaluation_interval_sec": 1.0,
+    "metrics_port": 8000,
+    "dashboard_port": 8000,
+    "standalone_telemetry_ports": {
+      "host_process": 8001,
+      "filesystem_entropy": 8002,
+      "identity_auth": 8003,
+      "network_exfil": 8004,
+      "defense_evasion": 8005,
+      "deception_tripwire": 8006
+    }
+  },
+  "canary": {
+    "vault_dir": "canary_vault",
+    "check_interval_sec": 0.5,
+    "files": [
+      {"filename": "q4_financial_payroll.xlsx",      "description": "Executive Salary & Tax Manifest", "category": "financial_confidential"},
+      {"filename": "client_contracts_vault.docx",    "description": "Master Services Agreement & NDA Archive", "category": "legal_sensitive"},
+      {"filename": "database_master_backup.sql",     "description": "PostgreSQL Core Database Dump", "category": "infrastructure"},
+      {"filename": "aws_production_keys.env",        "description": "Cloud Root Credentials and KMS Tokens", "category": "credentials"},
+      {"filename": "employee_personnel_records.pdf", "description": "HR PII & Identity Verification Records", "category": "pii"}
+    ]
+  },
+  "filesystem_monitoring": {
+    "monitored_dir": "monitored_dir",
+    "high_entropy_threshold": 7.85,
+    "consecutive_high_entropy_windows": 3,
+    "sliding_window_buffer_bytes": 65536,
+    "mass_rename_burst_threshold": 5,
+    "ransomware_extensions": [".wncry",".lockbit",".alphv",".blackcat",".ryk",".conti",".revil",".darkside",".akira",".royal",".maze",".clop",".hive",".locked",".crypto",".enc",".crypted",".ransom"]
+  },
+  "defense_evasion": {
+    "suspicious_commands": [
+      "vssadmin delete shadows","vssadmin resize shadowstorage","wmic shadowcopy delete",
+      "wbadmin delete catalog","bcdedit /set {default} bootstatuspolicy ignoreallfailures",
+      "bcdedit /set {default} recoveryenabled no","wevtutil cl","sc stop WinDefend",
+      "net stop","killall -9 auditd"
+    ]
+  },
+  "network_monitoring": {
+    "monitored_lateral_ports": [445, 135, 3389, 22, 5985],
+    "c2_beacon_threshold_burst": 5,
+    "outbound_bandwidth_spike_mb": 50
+  },
+  "risk_scoring": {
+    "weights": {
+      "canary_tripwire_breached": 35.0,
+      "high_write_entropy": 25.0,
+      "recovery_inhibition_cmd": 20.0,
+      "mass_file_renames": 15.0,
+      "suspicious_process_spawn": 10.0,
+      "network_c2_beaconing": 10.0,
+      "auth_anomaly_burst": 10.0
+    },
+    "thresholds": {
+      "normal_max": 19, "low_max": 39, "medium_max": 59, "high_max": 79,
+      "critical_min": 80, "containment_threat_score": 0.75
+    }
+  },
+  "automated_response": {
+    "enabled_by_default": true,
+    "terminate_process": true,
+    "isolate_network": true,
+    "quarantine_directory": true,
+    "notify_admin": true,
+    "auto_generate_incident_report": true
+  },
+  "admin_notifications": {
+    "soc_email": "your-soc-email@example.com",
+    "secondary_emails": ["secondary@example.com"],
+    "admin_name": "Chief Information Security Officer",
+    "webhook_url": "http://127.0.0.1:8000/api/webhook/alerts",
+    "broadcast_channel": "#critical-secops-war-room",
+    "phone_sms": "+1-888-999-SECOPS",
+    "alert_cooldown_sec": 5,
+    "prompt_before_simulation_email": true,
+    "auto_send_real_attack_email": true,
+    "smtp": {
+      "enabled": false,
+      "host": "smtp.gmail.com",
+      "port": 587,
+      "use_tls": true,
+      "username": "your-email@gmail.com",
+      "password": "YOUR_APP_PASSWORD_HERE",
+      "from_email": "your-email@gmail.com",
+      "from_name": "RansomGuard EDR SOC Alerting"
+    }
+  }
+}
